@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Серый: фон и поверхности -->
+    <color name="bg">#FFE9EDEF</color>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="surface_variant">#FFD8DEE2</color>
+    <color name="outline">#FFB4BEC4</color>
+    <color name="text_primary">#FF1D272D</color>
+    <color name="text_secondary">#FF5B6B75</color>
+    <!-- Морской: акцент -->
+    <color name="sea">#FF0E7C86</color>
+    <color name="on_sea">#FFFFFFFF</color>
+    <color name="sea_container">#FFBFE6E9</color>
+    <color name="on_sea_container">#FF06373C</color>
+    <color name="error">#FFB3261E</color>
+</resources>

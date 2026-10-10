@@ -1,0 +1,27 @@
+<resources>
+    <string name="app_name">MIDS</string>
+    <string name="subtitle">Финансовый ассистент</string>
+    <string name="hint_input">Спросите о финансах…</string>
+    <string name="empty_chat">Задайте вопрос о финансах.\nНапример: «Как менялась ключевая ставка Банка России за последний год? Покажи график».</string>
+    <string name="attach">Прикрепить файл</string>
+    <string name="send">Отправить</string>
+    <string name="menu_new_chat">Новый чат</string>
+    <string name="menu_history">История чатов</string>
+    <string name="menu_delete_chat">Удалить этот чат</string>
+    <string name="history_title">История чатов</string>
+    <string name="history_empty">Сохранённых чатов пока нет</string>
+    <string name="thinking_label">Размышления</string>
+    <string name="thinking_placeholder">Думаю…</string>
+    <string name="search_line">Поиск: %1$s</string>
+    <string name="menu_api_key">Ключ API</string>
+    <string name="api_key_title">Ключ Claude API</string>
+    <string name="api_key_message">Вставьте ключ из консоли Anthropic (начинается с sk-ant-). Он хранится только на этом устройстве.</string>
+    <string name="save">Сохранить</string>
+    <string name="cancel">Отмена</string>
+    <string name="sources">Источники:</string>
+    <string name="chart_source">Источник данных: %1$s</string>
+    <string name="attached_files">Файлы: %1$s</string>
+    <string name="default_file_prompt">Проанализируй приложенные файлы.</string>
+    <string name="need_api_key">Сначала укажите ключ API</string>
+    <string name="wait_answer">Дождитесь ответа</string>
+</resources>
