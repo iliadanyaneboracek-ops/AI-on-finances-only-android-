@@ -4,6 +4,15 @@ package com.example.aionfinances;
 public final class Config {
     private Config() {}
 
+    /**
+     * true — вместо настоящего Claude API работает мок (MockAiClient): ответы придумываются
+     * на телефоне, без интернета, ключа и оплаты. false — настоящие запросы к Claude.
+     */
+    public static final boolean USE_MOCK = true;
+
+    /** Пауза мока между кусочками ответа, в миллисекундах: имитирует скорость генерации. */
+    public static final long MOCK_DELAY_MS = 35;
+
     /** Адрес Claude API (программного интерфейса, которому приложение отправляет запросы). */
     public static final String API_URL = "https://api.anthropic.com/v1/messages";
     public static final String API_VERSION = "2023-06-01";

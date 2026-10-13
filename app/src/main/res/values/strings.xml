@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">MIDS</string>
     <string name="subtitle">Финансовый ассистент</string>
+    <string name="subtitle_mock">Демо-режим · без интернета</string>
     <string name="hint_input">Спросите о финансах…</string>
     <string name="empty_chat">Задайте вопрос о финансах.\nНапример: «Как менялась ключевая ставка Банка России за последний год? Покажи график».</string>
     <string name="attach">Прикрепить файл</string>

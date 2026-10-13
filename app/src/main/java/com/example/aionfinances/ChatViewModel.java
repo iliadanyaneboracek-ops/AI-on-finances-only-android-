@@ -75,7 +75,8 @@ public class ChatViewModel extends AndroidViewModel {
     private String chatId;
     private String chatTitle = "";
 
-    private final ClaudeClient client = new ClaudeClient();
+    /** Сетевой слой: подделка (мок) или настоящий Claude API — см. Config.USE_MOCK. */
+    private final AiClient client = Config.USE_MOCK ? new MockAiClient() : new ClaudeClient();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainThread = new Handler(Looper.getMainLooper());
 
@@ -183,7 +184,7 @@ public class ChatViewModel extends AndroidViewModel {
 
             for (int round = 0; round < MAX_ROUNDS; round++) {
                 live.startRound();
-                ClaudeClient.Result result = client.stream(apiKey, h, live);
+                AiClient.Result result = client.stream(apiKey, h, live);
                 live.endRound();
                 if (result.content.length() == 0) break;
                 h.put(new JSONObject().put("role", "assistant").put("content", result.content));
@@ -204,7 +205,7 @@ public class ChatViewModel extends AndroidViewModel {
                 }
                 break;
             }
-        } catch (AttachmentReader.FileException | ClaudeClient.ApiException e) {
+        } catch (AttachmentReader.FileException | AiClient.ApiException e) {
             rollback(h, mark);
             postError(e.getMessage());
         } catch (IOException e) {
@@ -227,7 +228,7 @@ public class ChatViewModel extends AndroidViewModel {
      * Показывает ответ по мере генерации. Методы вызываются в фоновом потоке, а на экран
      * изменения отправляются через mainThread.post(...) — готовыми копиями текста.
      */
-    private final class LiveAnswer implements ClaudeClient.StreamListener {
+    private final class LiveAnswer implements AiClient.StreamListener {
         private final ChatItem thinking;
         private final StringBuilder thinkingText = new StringBuilder();
         /** false, пока в элементе размышлений стоит заглушка «Думаю…». */

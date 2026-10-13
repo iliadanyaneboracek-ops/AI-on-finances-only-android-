@@ -109,7 +109,11 @@ public class MainActivity extends AppCompatActivity implements ChatViewModel.Lis
         refreshEmptyState();
         refreshPendingFiles();
 
-        if (Prefs.getApiKey(this).isEmpty()) showApiKeyDialog();
+        if (Config.USE_MOCK) {
+            toolbar.setSubtitle(R.string.subtitle_mock);
+        } else if (Prefs.getApiKey(this).isEmpty()) {
+            showApiKeyDialog();
+        }
     }
 
     @Override
@@ -148,7 +152,7 @@ public class MainActivity extends AppCompatActivity implements ChatViewModel.Lis
         if (text.isEmpty() && viewModel.pendingFiles.isEmpty()) return;
 
         String apiKey = Prefs.getApiKey(this);
-        if (apiKey.isEmpty()) {
+        if (apiKey.isEmpty() && !Config.USE_MOCK) {
             toast(R.string.need_api_key);
             showApiKeyDialog();
             return;

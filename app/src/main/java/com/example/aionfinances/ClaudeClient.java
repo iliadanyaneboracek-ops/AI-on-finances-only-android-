@@ -17,45 +17,13 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Отправляет запросы в Claude API и читает ответ по частям (потоковая передача).
+ * Настоящий сетевой слой: отправляет запросы в Claude API и читает ответ по частям
+ * (потоковая передача). Сейчас отключён: см. {@link Config#USE_MOCK}.
  * Работает синхронно: вызывать только из фонового потока.
  */
-public final class ClaudeClient {
+public final class ClaudeClient implements AiClient {
 
-    /** Ошибка, текст которой можно показать пользователю. */
-    public static final class ApiException extends Exception {
-        public ApiException(String message) {
-            super(message);
-        }
-    }
-
-    /** Сюда приходят кусочки ответа по мере генерации. Вызывается в фоновом потоке. */
-    public interface StreamListener {
-        /** Очередной фрагмент размышлений модели. */
-        void onThinking(String delta);
-
-        /** Очередной фрагмент текста ответа. */
-        void onText(String delta);
-
-        /** Текстовый блок закончен; citations — ссылки на источники для него или null. */
-        void onTextBlockDone(JSONArray citations);
-
-        /** Модель отправила поисковый запрос в интернет. */
-        void onSearch(String query);
-    }
-
-    /** Итог одного запроса: собранные блоки ответа и причина остановки. */
-    public static final class Result {
-        public final JSONArray content;
-        public final String stopReason;
-
-        Result(JSONArray content, String stopReason) {
-            this.content = content;
-            this.stopReason = stopReason;
-        }
-    }
-
-    /** @param messages история диалога в формате API */
+    @Override
     public Result stream(String apiKey, JSONArray messages, StreamListener listener)
             throws IOException, JSONException, ApiException {
         JSONObject body = new JSONObject();
