@@ -55,6 +55,8 @@ public final class ChartRenderer {
             set.setDrawCircleHole(false);
             set.setDrawCircles(entries.size() <= 40);
             set.setDrawValues(false);
+            // Ступенчатый показатель: горизонтально до следующей точки, затем вертикально.
+            if (spec.step) set.setMode(LineDataSet.Mode.STEPPED);
             sets.add(set);
         }
         chart.setData(new LineData(sets));

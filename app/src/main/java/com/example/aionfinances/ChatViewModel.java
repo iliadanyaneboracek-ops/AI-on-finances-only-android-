@@ -25,7 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Хранит состояние чата и общается с Claude в фоновом потоке.
+ * Хранит состояние чата и общается с моделью в фоновом потоке.
  * ViewModel переживает поворот экрана, поэтому переписка при повороте не теряется.
  *
  * Правило потоков: список items и поля элементов меняются только в главном потоке
@@ -75,8 +75,8 @@ public class ChatViewModel extends AndroidViewModel {
     private String chatId;
     private String chatTitle = "";
 
-    /** Сетевой слой: подделка (мок) или настоящий Claude API — см. Config.USE_MOCK. */
-    private final AiClient client = Config.USE_MOCK ? new MockAiClient() : new ClaudeClient();
+    /** Сетевой слой: мок, локальная модель в Ollama или Claude API — см. Config.BACKEND. */
+    private final AiClient client = createClient();
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainThread = new Handler(Looper.getMainLooper());
 
@@ -86,6 +86,19 @@ public class ChatViewModel extends AndroidViewModel {
     public ChatViewModel(@NonNull Application application) {
         super(application);
         store = new ChatStore(application);
+    }
+
+    /** Создаёт реализацию AiClient, выбранную в Config.BACKEND. */
+    private static AiClient createClient() {
+        switch (Config.BACKEND) {
+            case OLLAMA:
+                return new OllamaClient(Config.OLLAMA_URLS, Config.OLLAMA_MODEL,
+                        new FinanceTools(new CbrData(Config.CBR_URL)));
+            case CLAUDE:
+                return new ClaudeClient();
+            default:
+                return new MockAiClient();
+        }
     }
 
     public void setListener(Listener listener) {
@@ -269,9 +282,23 @@ public class ChatViewModel extends AndroidViewModel {
         @Override
         public void onSearch(String query) {
             if (query.isEmpty()) return;
+            addLine(getApplication().getString(R.string.search_line, query));
+        }
+
+        @Override
+        public void onToolError(String message) {
+            if (message.isEmpty()) return;
+            addLine(getApplication().getString(R.string.tool_error_line, message));
+        }
+
+        /** Служебная строка в «Размышлениях» (поиск, ошибка инструмента) — отдельным абзацем. */
+        private void addLine(String line) {
             thinkingReal = true;
-            if (thinkingText.length() > 0) thinkingText.append("\n\n");
-            thinkingText.append(getApplication().getString(R.string.search_line, query)).append("\n\n");
+            int length = thinkingText.length();
+            boolean blankLineBefore = length >= 2 && thinkingText.charAt(length - 1) == '\n'
+                    && thinkingText.charAt(length - 2) == '\n';
+            if (length > 0 && !blankLineBefore) thinkingText.append("\n\n");
+            thinkingText.append(line).append("\n\n");
             pushThinking(true);
         }
 

@@ -18,7 +18,7 @@ import java.util.TreeMap;
 
 /**
  * Настоящий сетевой слой: отправляет запросы в Claude API и читает ответ по частям
- * (потоковая передача). Сейчас отключён: см. {@link Config#USE_MOCK}.
+ * (потоковая передача). Включается в {@link Config#BACKEND}.
  * Работает синхронно: вызывать только из фонового потока.
  */
 public final class ClaudeClient implements AiClient {
@@ -209,7 +209,10 @@ public final class ClaudeClient implements AiClient {
                 .put("y_unit", new JSONObject().put("type", "string")
                         .put("description", "Единица измерения, например % или млрд руб."))
                 .put("source", new JSONObject().put("type", "string")
-                        .put("description", "Откуда взяты данные: название источника и дата"));
+                        .put("description", "Откуда взяты данные: название источника и дата"))
+                .put("step", new JSONObject().put("type", "boolean")
+                        .put("description", "true, если показатель меняется ступеньками, как "
+                                + "ключевая ставка: линия нарисуется уступами"));
 
         JSONObject chart = new JSONObject()
                 .put("name", "draw_chart")

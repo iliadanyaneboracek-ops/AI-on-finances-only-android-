@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android по умолчанию запрещает незашифрованные соединения (http://).
+    Ollama на компьютере работает именно по http, поэтому разрешаем его только
+    для адресов компьютера. Всё остальное (ЦБ, Claude API) по-прежнему только https.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- так эмулятор Android видит компьютер, на котором он запущен -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- туннель после команды adb reverse tcp:11434 tcp:11434 (телефон или эмулятор) -->
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

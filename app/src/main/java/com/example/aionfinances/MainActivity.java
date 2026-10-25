@@ -4,6 +4,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.TypedValue;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -109,11 +110,19 @@ public class MainActivity extends AppCompatActivity implements ChatViewModel.Lis
         refreshEmptyState();
         refreshPendingFiles();
 
-        if (Config.USE_MOCK) {
-            toolbar.setSubtitle(R.string.subtitle_mock);
-        } else if (Prefs.getApiKey(this).isEmpty()) {
-            showApiKeyDialog();
+        switch (Config.BACKEND) {
+            case MOCK:
+                toolbar.setSubtitle(R.string.subtitle_mock);
+                break;
+            case OLLAMA:
+                toolbar.setSubtitle(getString(R.string.subtitle_ollama, Config.OLLAMA_MODEL));
+                break;
+            default:
+                if (Prefs.getApiKey(this).isEmpty()) showApiKeyDialog();
         }
+        // Ключ API нужен только для Claude: в остальных режимах пункт меню прячем.
+        MenuItem apiKeyItem = toolbar.getMenu().findItem(R.id.action_api_key);
+        if (apiKeyItem != null) apiKeyItem.setVisible(Config.BACKEND == Config.Backend.CLAUDE);
     }
 
     @Override
@@ -152,7 +161,7 @@ public class MainActivity extends AppCompatActivity implements ChatViewModel.Lis
         if (text.isEmpty() && viewModel.pendingFiles.isEmpty()) return;
 
         String apiKey = Prefs.getApiKey(this);
-        if (apiKey.isEmpty() && !Config.USE_MOCK) {
+        if (apiKey.isEmpty() && Config.BACKEND == Config.Backend.CLAUDE) {
             toast(R.string.need_api_key);
             showApiKeyDialog();
             return;

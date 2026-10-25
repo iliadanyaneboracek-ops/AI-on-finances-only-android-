@@ -2,6 +2,7 @@
     <string name="app_name">MIDS</string>
     <string name="subtitle">Финансовый ассистент</string>
     <string name="subtitle_mock">Демо-режим · без интернета</string>
+    <string name="subtitle_ollama">Ollama · %1$s</string>
     <string name="hint_input">Спросите о финансах…</string>
     <string name="empty_chat">Задайте вопрос о финансах.\nНапример: «Как менялась ключевая ставка Банка России за последний год? Покажи график».</string>
     <string name="attach">Прикрепить файл</string>
@@ -14,6 +15,7 @@
     <string name="thinking_label">Размышления</string>
     <string name="thinking_placeholder">Думаю…</string>
     <string name="search_line">Поиск: %1$s</string>
+    <string name="tool_error_line">Ошибка: %1$s</string>
     <string name="menu_api_key">Ключ API</string>
     <string name="api_key_title">Ключ Claude API</string>
     <string name="api_key_message">Вставьте ключ из консоли Anthropic (начинается с sk-ant-). Он хранится только на этом устройстве.</string>

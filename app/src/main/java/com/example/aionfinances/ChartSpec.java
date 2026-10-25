@@ -27,11 +27,16 @@ public final class ChartSpec {
     public final List<Series> series;
     public final String unit;
     public final String source;
+    /**
+     * Показатель меняется ступеньками (например, ключевая ставка): линию рисуем уступами,
+     * а не наклонными отрезками между точками.
+     */
+    public final boolean step;
     /** Исходный JSON от модели: нужен, чтобы сохранить график вместе с перепиской. */
     public final JSONObject raw;
 
     private ChartSpec(JSONObject raw, String title, boolean bar, List<String> labels,
-                      List<Series> series, String unit, String source) {
+                      List<Series> series, String unit, String source, boolean step) {
         this.raw = raw;
         this.title = title;
         this.bar = bar;
@@ -39,6 +44,7 @@ public final class ChartSpec {
         this.series = series;
         this.unit = unit;
         this.source = source;
+        this.step = step;
     }
 
     /** Разбирает JSON от модели. Бросает JSONException, если данных для графика нет. */
@@ -70,6 +76,7 @@ public final class ChartSpec {
                 labels,
                 series,
                 in.optString("y_unit", ""),
-                in.optString("source", ""));
+                in.optString("source", ""),
+                in.optBoolean("step", false));
     }
 }

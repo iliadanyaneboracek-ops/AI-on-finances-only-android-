@@ -70,6 +70,7 @@ public final class MockAiClient implements AiClient {
             out.chart(new JSONObject()
                     .put("title", "Ключевая ставка (демо-данные)")
                     .put("chart_type", "line")
+                    .put("step", true)
                     .put("x_labels", strings("Апр", "Май", "Июн", "Июл", "Авг", "Сен"))
                     .put("series", new JSONArray().put(series("Ставка", 18, 18, 17, 17, 16, 15.5)))
                     .put("y_unit", "%")
