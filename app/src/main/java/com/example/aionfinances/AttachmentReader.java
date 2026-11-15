@@ -47,8 +47,8 @@ public final class AttachmentReader {
         return last == null ? "файл" : last;
     }
 
-    public static JSONObject toContentBlock(ContentResolver cr, Uri uri, String name)
-            throws IOException, JSONException, FileException {
+    public static JSONObject toContentBlock(ContentResolver cr, Uri uri, String name, AiClient client)
+            throws IOException, JSONException, FileException, AiClient.ApiException {
         String mime = cr.getType(uri);
         if (mime == null) mime = "";
 
@@ -68,9 +68,15 @@ public final class AttachmentReader {
         if (dot >= 0) ext = name.substring(dot + 1).toLowerCase(Locale.ROOT);
 
         if (mime.startsWith("image/")) {
+            if (client instanceof OllamaClient && !((OllamaClient) client).supportsVision()) {
+                throw new FileException("Модель не читает изображения. Выберите текст или CSV.");
+            }
             return imageBlock(readBytes(cr, uri, exportMime, 40 * 1024 * 1024, name), name);
         }
         if (mime.equals("application/pdf") || (exportMime == null && ext.equals("pdf"))) {
+            if (client instanceof OllamaClient) {
+                throw new FileException("В режиме Ollama PDF не поддерживается. Выберите текст или CSV.");
+            }
             byte[] bytes = readBytes(cr, uri, exportMime, Config.MAX_PDF_BYTES, name);
             return new JSONObject()
                     .put("type", "document")
@@ -157,7 +163,9 @@ public final class AttachmentReader {
     /** Выбирает формат выгрузки: таблицы лучше как CSV, документы — как PDF. */
     private static String pickExportType(String[] offered) {
         if (offered == null) return null;
-        String[] preferred = {"text/csv", "application/pdf", "text/plain", "text/html"};
+        String[] preferred = Config.BACKEND == Config.Backend.OLLAMA
+                ? new String[]{"text/csv", "text/plain", "text/html", "application/pdf"}
+                : new String[]{"text/csv", "application/pdf", "text/plain", "text/html"};
         for (String want : preferred) {
             for (String have : offered) {
                 if (want.equals(have)) return want;

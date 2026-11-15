@@ -105,6 +105,10 @@ public class MainActivity extends AppCompatActivity implements ChatViewModel.Lis
         send.setOnClickListener(v -> onSendClicked());
         findViewById(R.id.attach).setOnClickListener(v -> filePicker.launch(new String[]{"*/*"}));
 
+        findViewById(R.id.retry).setOnClickListener(v -> viewModel.retry(Prefs.getApiKey(this)));
+        android.widget.CheckBox privateMode = findViewById(R.id.privateMode);
+        privateMode.setChecked(viewModel.isPrivateChat());
+        privateMode.setOnCheckedChangeListener((button, checked) -> viewModel.setPrivateChat(checked));
         viewModel.setListener(this);
         onBusyChanged(viewModel.isBusy());
         refreshEmptyState();
@@ -173,11 +177,7 @@ public class MainActivity extends AppCompatActivity implements ChatViewModel.Lis
 
     private void onFilesPicked(List<Uri> uris) {
         if (uris == null) return;
-        for (Uri uri : uris) {
-            String name = AttachmentReader.displayName(getContentResolver(), uri);
-            viewModel.pendingFiles.add(new ChatViewModel.PendingFile(uri, name));
-        }
-        refreshPendingFiles();
+        viewModel.pickFiles(uris);
     }
 
     /** Рисует над полем ввода «плашки» с выбранными файлами; нажатие на плашку убирает файл. */
@@ -275,6 +275,7 @@ public class MainActivity extends AppCompatActivity implements ChatViewModel.Lis
     @Override
     public void onChatReplaced() {
         adapter.notifyDataSetChanged();
+        onBusyChanged(viewModel.isBusy());
         if (!viewModel.items.isEmpty()) list.scrollToPosition(viewModel.items.size() - 1);
         refreshEmptyState();
         refreshPendingFiles();
@@ -282,12 +283,19 @@ public class MainActivity extends AppCompatActivity implements ChatViewModel.Lis
 
     @Override
     public void onBusyChanged(boolean busy) {
+        android.widget.CheckBox mode = findViewById(R.id.privateMode);
+        mode.setChecked(viewModel.isPrivateChat());
+        mode.setEnabled(!busy && viewModel.items.isEmpty());
+        mode.setVisibility(viewModel.items.isEmpty() || viewModel.isPrivateChat() ? View.VISIBLE : View.GONE);
+        findViewById(R.id.retry).setVisibility(viewModel.canRetry() && !busy ? View.VISIBLE : View.GONE);
+        findViewById(R.id.attach).setEnabled(!busy);
+        refreshPendingFiles();
         send.setAlpha(busy ? 0.4f : 1f);
     }
 
     @Override
     public void onMessage(String text) {
-        Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
+        new MaterialAlertDialogBuilder(this).setMessage(text).setPositiveButton(android.R.string.ok, null).show();
     }
 
     private void refreshEmptyState() {

@@ -57,13 +57,15 @@ public final class ChatStore {
         return result;
     }
 
-    public synchronized void write(String id, String title, JSONArray items, JSONArray history)
+    public synchronized void write(String id, String title, JSONArray items, JSONArray history,
+                                   JSONArray failedContent, int failedRow)
             throws IOException, JSONException {
         if (!dir.exists() && !dir.mkdirs()) throw new IOException("Не удалось создать папку чатов");
         JSONObject chat = new JSONObject()
                 .put("title", title)
                 .put("items", items)
                 .put("history", history);
+        if (failedContent != null) chat.put("failedContent", failedContent).put("failedRow", failedRow);
         writeFile(chatFile(id), chat.toString());
 
         JSONArray old = readIndex();

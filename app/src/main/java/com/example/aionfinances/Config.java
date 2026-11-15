@@ -81,26 +81,9 @@ public final class Config {
      * Чтобы добавить источник, допишите домен без "https://".
      */
     public static final String[] TRUSTED_DOMAINS = {
-            "cbr.ru",               // Банк России
-            "rosstat.gov.ru",       // Росстат
-            "minfin.gov.ru",        // Минфин России
-            "nalog.gov.ru",         // Федеральная налоговая служба
-            "moex.com",             // Московская биржа
-            "e-disclosure.ru",      // раскрытие отчётности российских компаний
-            "imf.org",              // Международный валютный фонд
-            "worldbank.org",        // Всемирный банк
-            "oecd.org",             // Организация экономического сотрудничества и развития
-            "bis.org",              // Банк международных расчётов
-            "federalreserve.gov",   // Федеральная резервная система США
-            "fred.stlouisfed.org",  // база экономических данных ФРС
-            "sec.gov",              // Комиссия по ценным бумагам США (отчётность компаний)
-            "treasury.gov",         // Минфин США
-            "bls.gov",              // Бюро статистики труда США
-            "bea.gov",              // Бюро экономического анализа США
-            "ecb.europa.eu",        // Европейский центральный банк
-            "ec.europa.eu"          // Евростат
+            "moex.com", "indexes.nasdaqomx.com", "ishares.com",
+            "berkshirehathaway.com", "oaktreecapital.com"
     };
-
     // ---------- Вложения ----------
 
     /** Ограничения на вложения. */

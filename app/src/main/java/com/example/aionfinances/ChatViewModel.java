@@ -51,17 +51,15 @@ public class ChatViewModel extends AndroidViewModel {
 
     /** Файл, выбранный пользователем, но ещё не отправленный. */
     public static final class PendingFile {
-        public final Uri uri;
+        public final JSONObject content;
         public final String name;
 
-        public PendingFile(Uri uri, String name) {
-            this.uri = uri;
+        public PendingFile(JSONObject content, String name) {
+            this.content = content;
             this.name = name;
         }
     }
 
-    /** Сколько раз подряд модель может вызвать инструменты в одном ответе. */
-    private static final int MAX_ROUNDS = 8;
     /** Как часто (в миллисекундах) обновлять текст на экране, пока он печатается. */
     private static final long PUSH_INTERVAL_MS = 70;
 
@@ -82,6 +80,41 @@ public class ChatViewModel extends AndroidViewModel {
 
     private Listener listener;
     private boolean busy;
+    private boolean privateChat;
+    private JSONArray failedContent;
+    private int failedRow = -1;
+
+    public boolean isPrivateChat() { return privateChat; }
+    public boolean canRetry() { return failedContent != null; }
+
+    public void setPrivateChat(boolean enabled) {
+        if (chatId == null && !busy) privateChat = enabled;
+    }
+
+    public void pickFiles(List<Uri> uris) {
+        if (busy || uris.isEmpty()) return;
+        setBusy(true);
+        executor.execute(() -> {
+            ContentResolver resolver = getApplication().getContentResolver();
+            List<PendingFile> accepted = new ArrayList<>();
+            List<String> issues = new ArrayList<>();
+            for (Uri uri : uris) {
+                String name = AttachmentReader.displayName(resolver, uri);
+                try {
+                    accepted.add(new PendingFile(AttachmentReader.toContentBlock(resolver, uri, name, client), name));
+                } catch (AiClient.ApiException | AttachmentReader.FileException e) {
+                    issues.add(name + " · " + e.getMessage());
+                } catch (IOException | JSONException | RuntimeException e) {
+                    issues.add(name + " · Не удалось подготовить вложение: " + e.getMessage());
+                }
+            }
+            mainThread.post(() -> {
+                pendingFiles.addAll(accepted);
+                setBusy(false);
+                if (listener != null && !issues.isEmpty()) listener.onMessage(android.text.TextUtils.join("\n", issues));
+            });
+        });
+    }
 
     public ChatViewModel(@NonNull Application application) {
         super(application);
@@ -92,8 +125,7 @@ public class ChatViewModel extends AndroidViewModel {
     private static AiClient createClient() {
         switch (Config.BACKEND) {
             case OLLAMA:
-                return new OllamaClient(Config.OLLAMA_URLS, Config.OLLAMA_MODEL,
-                        new FinanceTools(new CbrData(Config.CBR_URL)));
+                return new OllamaClient(Config.OLLAMA_URLS, Config.OLLAMA_MODEL);
             case CLAUDE:
                 return new ClaudeClient();
             default:
@@ -115,6 +147,9 @@ public class ChatViewModel extends AndroidViewModel {
         items.clear();
         pendingFiles.clear();
         history = new JSONArray();
+        privateChat = false;
+        failedContent = null;
+        failedRow = -1;
         chatId = null;
         chatTitle = "";
         if (listener != null) listener.onChatReplaced();
@@ -146,6 +181,10 @@ public class ChatViewModel extends AndroidViewModel {
                     items.clear();
                     items.addAll(loaded);
                     pendingFiles.clear();
+                    privateChat = false;
+                    failedRow = chat.optInt("failedRow", -1);
+                    failedContent = failedRow >= 0 && failedRow < loaded.size()
+                            && loaded.get(failedRow).type == ChatItem.USER ? chat.optJSONArray("failedContent") : null;
                     history = loadedHistory;
                     chatId = id;
                     chatTitle = title;
@@ -174,74 +213,64 @@ public class ChatViewModel extends AndroidViewModel {
             chatId = String.valueOf(System.currentTimeMillis());
             chatTitle = prompt.length() > 48 ? prompt.substring(0, 48) + "…" : prompt;
         }
+        JSONArray content = new JSONArray();
+        for (PendingFile f : files) content.put(f.content);
+        try {
+            content.put(new JSONObject().put("type", "text").put("text", prompt));
+        } catch (JSONException e) {
+            throw new IllegalStateException(e);
+        }
+        failedContent = null;
         addItem(ChatItem.user(prompt, names));
-        setBusy(true);
-
-        final JSONArray h = history;
-        executor.execute(() -> runRequest(h, prompt, files, apiKey));
+        startRequest(content, apiKey, items.size() - 1);
     }
 
-    /** Выполняется в фоновом потоке. */
-    private void runRequest(JSONArray h, String prompt, List<PendingFile> files, String apiKey) {
-        // Запоминаем длину истории: при ошибке откатимся к ней, чтобы история осталась целой.
+    public void retry(String apiKey) {
+        if (busy || failedContent == null) return;
+        while (items.size() > failedRow + 1) items.remove(items.size() - 1);
+        if (listener != null) listener.onChatReplaced();
+        startRequest(failedContent, apiKey, failedRow);
+    }
+
+    private void startRequest(JSONArray content, String apiKey, int row) {
+        setBusy(true);
+        executor.execute(() -> runRequest(history, content, apiKey, row));
+    }
+
+    private void runRequest(JSONArray h, JSONArray content, String apiKey, int row) {
         final int mark = h.length();
         final LiveAnswer live = new LiveAnswer();
+        String failure = null;
         try {
-            ContentResolver cr = getApplication().getContentResolver();
-            JSONArray content = new JSONArray();
-            for (PendingFile f : files) {
-                content.put(AttachmentReader.toContentBlock(cr, f.uri, f.name));
-            }
-            content.put(new JSONObject().put("type", "text").put("text", prompt));
-            h.put(new JSONObject().put("role", "user").put("content", content));
-
-            for (int round = 0; round < MAX_ROUNDS; round++) {
-                live.startRound();
-                AiClient.Result result = client.stream(apiKey, h, live);
-                live.endRound();
-                if (result.content.length() == 0) break;
-                h.put(new JSONObject().put("role", "assistant").put("content", result.content));
-
-                JSONArray toolResults = handleTools(result.content);
-
-                if ("tool_use".equals(result.stopReason)) {
-                    // Модель вызвала наш инструмент и ждёт результат, чтобы продолжить ответ.
-                    h.put(new JSONObject().put("role", "user").put("content", toolResults));
-                    continue;
-                }
-                if ("pause_turn".equals(result.stopReason)) {
-                    // Сервер приостановил долгий поиск: повторяем запрос, и модель продолжит.
-                    continue;
-                }
-                if ("max_tokens".equals(result.stopReason)) {
-                    postError("Ответ обрезан: достигнут предел длины. Попросите продолжить.");
-                }
-                break;
-            }
-        } catch (AttachmentReader.FileException | AiClient.ApiException e) {
-            rollback(h, mark);
-            postError(e.getMessage());
+            ChatRequest.execute(client, apiKey, h, content, live);
+        } catch (AiClient.ApiException e) {
+            failure = e.getMessage();
         } catch (IOException e) {
-            rollback(h, mark);
-            postError("Нет связи с сервером Claude. Проверьте интернет и VPN. Подробности: "
-                    + e.getMessage());
+            failure = "Ошибка соединения с " + Config.BACKEND + ". " + e.getMessage();
         } catch (JSONException | RuntimeException e) {
-            rollback(h, mark);
-            postError("Не удалось обработать ответ: " + e.getMessage());
-        } finally {
-            live.finish();
-            mainThread.post(() -> {
-                setBusy(false);
-                saveCurrentChat();
-            });
+            failure = "Не удалось обработать ответ: " + e.getMessage();
         }
+        final String error = failure;
+        if (error != null) rollback(h, mark);
+        live.finish();
+        mainThread.post(() -> {
+            failedContent = error == null ? null : content;
+            failedRow = error == null ? -1 : row;
+            if (error != null) {
+                while (items.size() > row + 1) items.remove(items.size() - 1);
+                items.add(ChatItem.error("Не отправлено. " + error));
+                if (listener != null) listener.onChatReplaced();
+            }
+            saveCurrentChat();
+            setBusy(false);
+        });
     }
 
     /**
      * Показывает ответ по мере генерации. Методы вызываются в фоновом потоке, а на экран
      * изменения отправляются через mainThread.post(...) — готовыми копиями текста.
      */
-    private final class LiveAnswer implements AiClient.StreamListener {
+    private final class LiveAnswer implements ChatRequest.Listener {
         private final ChatItem thinking;
         private final StringBuilder thinkingText = new StringBuilder();
         /** false, пока в элементе размышлений стоит заглушка «Думаю…». */
@@ -254,20 +283,26 @@ public class ChatViewModel extends AndroidViewModel {
 
         private long lastPush;
 
+        public void onChart(ChartSpec spec) {
+            mainThread.post(() -> addItem(ChatItem.chart(spec)));
+        }
+
+        public void onNotice(String text) { postError(text); }
+
         LiveAnswer() {
             thinking = ChatItem.thinking(getApplication().getString(R.string.thinking_placeholder));
             mainThread.post(() -> addItem(thinking));
         }
 
         /** Каждый запрос к API получает свой элемент ответа со своей нумерацией источников. */
-        void startRound() {
+        public void startRound() {
             answer = null;
             answerText = new StringBuilder();
             sources = new ArrayList<>();
             numberByUrl = new HashMap<>();
         }
 
-        void endRound() {
+        public void endRound() {
             pushThinking(true);
             pushAnswer(true);
         }
@@ -391,43 +426,14 @@ public class ChatViewModel extends AndroidViewModel {
         }
     }
 
-    /**
-     * Находит в ответе вызовы инструмента draw_chart, показывает графики
-     * и готовит для модели результаты вызовов.
-     */
-    private JSONArray handleTools(JSONArray blocks) throws JSONException {
-        JSONArray toolResults = new JSONArray();
-        for (int i = 0; i < blocks.length(); i++) {
-            JSONObject block = blocks.getJSONObject(i);
-            if (!"tool_use".equals(block.optString("type"))) continue;
-
-            JSONObject result = new JSONObject()
-                    .put("type", "tool_result")
-                    .put("tool_use_id", block.getString("id"));
-            if ("draw_chart".equals(block.optString("name"))) {
-                try {
-                    final ChartSpec spec = ChartSpec.fromJson(block.getJSONObject("input"));
-                    mainThread.post(() -> addItem(ChatItem.chart(spec)));
-                    result.put("content", "График показан пользователю.");
-                } catch (JSONException e) {
-                    result.put("content", "График не построен: данные заданы неверно.");
-                    result.put("is_error", true);
-                }
-            } else {
-                result.put("content", "Неизвестный инструмент.");
-                result.put("is_error", true);
-            }
-            toolResults.put(result);
-        }
-        return toolResults;
-    }
-
     /** Записывает текущий чат в файл. Вызывается в главном потоке после каждого ответа. */
     private void saveCurrentChat() {
-        if (chatId == null) return;
+        if (privateChat || chatId == null) return;
         final String id = chatId;
         final String title = chatTitle;
         final JSONArray h = history;
+        final JSONArray retryContent = failedContent;
+        final int retryRow = failedRow;
         final JSONArray jsonItems = new JSONArray();
         try {
             for (ChatItem item : items) jsonItems.put(item.toJson());
@@ -436,7 +442,7 @@ public class ChatViewModel extends AndroidViewModel {
         }
         executor.execute(() -> {
             try {
-                store.write(id, title, jsonItems, h);
+                store.write(id, title, jsonItems, h, retryContent, retryRow);
             } catch (IOException | JSONException | RuntimeException e) {
                 mainThread.post(() -> {
                     if (listener != null) listener.onMessage("Не удалось сохранить чат");

@@ -186,6 +186,10 @@ public final class ClaudeClient implements AiClient {
                 .put("max_uses", Config.MAX_SEARCHES)
                 .put("allowed_domains", domains);
 
+        return new JSONArray().put(search).put(chartDefinition());
+    }
+
+    static JSONObject chartDefinition() throws JSONException {
         JSONObject stringType = new JSONObject().put("type", "string");
         JSONObject seriesItem = new JSONObject()
                 .put("type", "object")
@@ -224,7 +228,7 @@ public final class ClaudeClient implements AiClient {
                         .put("required", new JSONArray().put("title").put("chart_type")
                                 .put("x_labels").put("series").put("source")));
 
-        return new JSONArray().put(search).put(chart);
+        return chart;
     }
 
     private static String describeError(int code, String text) {

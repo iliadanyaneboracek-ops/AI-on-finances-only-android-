@@ -65,7 +65,7 @@ public final class OllamaClient implements AiClient {
     /** Адреса Ollama в порядке из Config.OLLAMA_URLS. */
     private final String[] baseUrls;
     private final String model;
-    private final FinanceTools tools;
+
 
     /** Номер адреса, с которым соединились в прошлый раз: с него и начинаем. */
     private volatile int working;
@@ -89,15 +89,15 @@ public final class OllamaClient implements AiClient {
      * @param baseUrls адреса Ollama по порядку, например {"http://10.0.2.2:11434"}
      * @param model    имя модели, как в команде ollama pull, например qwen3:14b
      */
-    public OllamaClient(String[] baseUrls, String model, FinanceTools tools) {
+    public OllamaClient(String[] baseUrls, String model) {
         this.baseUrls = baseUrls.clone();
         this.model = model;
-        this.tools = tools;
+
     }
 
     /** То же для одного адреса. */
     public OllamaClient(String baseUrl, String model, FinanceTools tools) {
-        this(new String[]{baseUrl}, model, tools);
+        this(new String[]{baseUrl}, model);
     }
 
     @Override
@@ -168,10 +168,12 @@ public final class OllamaClient implements AiClient {
 
             // Сначала инструменты данных: draw_chart может сослаться на их результат.
             for (ToolCall call : reply.calls) {
-                if (!FinanceTools.isDataTool(call.name)) continue;
-                listener.onSearch(FinanceTools.label(call.name, call.args));
+                if (!MarketSource.TOOL.equals(call.name)) continue;
+                MarketSource source = MarketSource.find(call.args);
+                listener.onSearch(source == null ? call.args.optString("id") : source.title);
                 searched = true;
-                JSONObject result = tools.run(call.name, call.args, "chart_" + (countCharts(results) + 1));
+                JSONObject result = source == null
+                        ? FinanceTools.error("Выберите источник из каталога.") : source.read();
                 if (result.has("error")) listener.onToolError(result.optString("error"));
                 results.add(result);
                 addSource(sources, result);
@@ -180,9 +182,12 @@ public final class OllamaClient implements AiClient {
                 toolMessages.add(toolMessage(call.name, call.id, result.toString()));
             }
             for (ToolCall call : reply.calls) {
-                if (FinanceTools.isDataTool(call.name)) continue;
+                if (MarketSource.TOOL.equals(call.name)) continue;
                 boolean isChart = FinanceTools.DRAW_CHART.equals(call.name);
-                JSONObject spec = isChart ? chartFor(call.args, results) : null;
+                JSONObject spec = null;
+                if (isChart) {
+                    spec = call.args.has("series") ? call.args : chartFor(call.args, results);
+                }
                 if (spec != null) {
                     // График рисует экран: отдаём вызов в ChatViewModel, как это делает Claude.
                     callBlocks.put(new JSONObject().put("type", "tool_use").put("id", call.id)
@@ -192,7 +197,7 @@ public final class OllamaClient implements AiClient {
                 }
                 JSONObject error = FinanceTools.error(isChart
                         ? "Нет данных с chart_id «" + call.args.optString("chart_id") + "». Сначала "
-                        + "получи данные инструментом get_key_rate или get_exchange_rates и передай "
+                        + "используй реальные числовые ряды из материала или вложения. Старый график требует "
                         + "chart_id из его результата."
                         : "Нет такого инструмента: " + call.name + ".");
                 callBlocks.put(callBlock(call));
@@ -220,7 +225,7 @@ public final class OllamaClient implements AiClient {
         JSONObject body = new JSONObject()
                 .put("model", model)
                 .put("messages", messages)
-                .put("tools", FinanceTools.definitions())
+                .put("tools", MarketSource.definitions())
                 .put("stream", true)
                 .put("keep_alive", Config.OLLAMA_KEEP_ALIVE)
                 .put("options", new JSONObject().put("num_ctx", Config.OLLAMA_CONTEXT));
@@ -302,6 +307,11 @@ public final class OllamaClient implements AiClient {
     }
 
     /** Что умеет модель. Без tools работать нельзя: модель не сможет получить данные ЦБ. */
+    boolean supportsVision() throws IOException, JSONException, ApiException {
+        loadCapabilities();
+        return capabilities.contains("vision");
+    }
+
     private void loadCapabilities() throws IOException, JSONException, ApiException {
         if (capabilities != null) return;
         Set<String> found = new HashSet<>();
@@ -537,14 +547,6 @@ public final class OllamaClient implements AiClient {
         return citations;
     }
 
-    private static int countCharts(List<JSONObject> results) {
-        int n = 0;
-        for (JSONObject r : results) {
-            if (!r.optString("chart_id").isEmpty()) n++;
-        }
-        return n;
-    }
-
     /** Описание графика по chart_id. Маленькие модели иногда пишут «1» или «chart1» — поймём и так. */
     private static JSONObject chartFor(JSONObject args, List<JSONObject> results)
             throws JSONException {
@@ -574,7 +576,7 @@ public final class OllamaClient implements AiClient {
 
     private String noTools() {
         return "Модель «" + model + "» не умеет вызывать инструменты (tools), а без них MIDS не "
-                + "может брать данные ЦБ. Скачайте модель с пометкой tools, например: "
+                + "может читать рыночные источники. Скачайте модель с пометкой tools, например: "
                 + "ollama pull qwen3:14b, и укажите её в Config.OLLAMA_MODEL.";
     }
 
